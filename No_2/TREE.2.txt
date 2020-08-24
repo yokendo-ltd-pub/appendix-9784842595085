@@ -1,0 +1,39 @@
+                    |-- AEMX0
+                    |-- AEMX1
+                    |-- MAINAEM.F
+                    |-- FORT.59
+        |-- CHAP5 --|-- FORT.31
+        |           |-- F31.Z
+        |           |-- F59.Z
+        |           |-- README.DOC
+        |
+        |           |-- README.DOC
+        |           |-- MAKEFILE.UNX
+        |           |-- E0B0.F
+        |           |-- E0B0NI.F
+        |           |-- INEDDY.F
+        |           |-- INEDDY2.F
+        |           |-- MEDDY.F
+        |           |-- MEDDY2.F
+        |           |-- MEDDYGS.F
+        |           |-- STD2PGL.F
+|-- . --|-- CHAP6 --|-- SYMM.F
+        |           |-- TAM2.F
+        |           |-- MAKEFILE.DOS
+        |           |-- F17
+        |           |-- FFF
+        |           |-- MEDDY.ETC
+        |           |-- F08
+        |           |-- F18
+        |           |-- F09
+        |           |-- F19
+        |
+        |           |-- EMF.DAT
+        |-- CHAP7 --|-- EMF.SRC
+        |
+        |           |-- SPHERE.F
+        |           |-- SPHERE.DAT
+        |-- CHAP8 --|-- BLOCK.DAT
+                    |-- EDDYVI.F
+                    |-- HFIELD.F
+

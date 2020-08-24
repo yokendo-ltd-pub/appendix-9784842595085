@@ -1,0 +1,1535 @@
+      PARAMETER(NMAX=242,EMAX=100,BMAX=242,KMAX=240)
+
+      SUBROUTINE ACLFEM(V,SIGMA,DELT,XP,YP,ZP,IMAX)
+      IMPLICIT NONE
+      INTEGER NRI,NTHI,NZI,FNMAX,EMAX,NMAX,BMAX,KMAX,NF
+      DOUBLE PRECISION  XP,YP,ZP,ZPP
+      PARAMETER (NRI=4,NTHI=36,NZI=4)
+      PARAMETER (FNMAX=NRI*NTHI*NZI)
+      INCLUDE 'RMINC'
+      INTEGER NELEM,NP,IMAX,I,J,K,L,M,N,
+     +     NOD(EMAX,8),ND,TURN,NZ0,NR0
+      COMPLEX*16 AV(NRI*NTHI*NZI,3),V(*),JX,JY,DT,Y1,Y2,XX,AT
+      DOUBLE PRECISION DERIV(3,8),DERIVC(3,8),SHAPE(8),
+     +     DELT,JACOBD,G,XA,YA,ZA,X,Y(FNMAX),Z(FNMAX),
+     +     XY(NMAX,3),XYZ(FNMAX,3),GAUSS(25),GCOEF(25),
+     +     SIGMA,DZ,DR,A0,A,Z0,DTH,R,DEL,
+     +     MU,PI,SS,DT1,J0,ZL,RL,AP,LFTOFF
+      COMMON /B0/  NP,NELEM
+      COMMON /B1/  GAUSS,GCOEF
+      COMMON /B3/  DERIV,DERIVC,SHAPE
+      COMMON /B5/  NOD
+      COMMON /B6/  XY
+      COMMON /DAT/ PI
+      COMMON /CPARAM/ J0,ZL,RL,AP,NZ0,NR0,TURN,LFTOFF
+ 
+      MU=4.0D-7*PI
+      SS=0.25D0/PI*MU
+      CALL CHANGE(GAUSS,GCOEF,IMAX)
+      NF=NRI*NZI*NTHI
+      DO 20 I=1,NF
+         AV(I,1)=CMPLX(0.0D0,0.0D0)
+         AV(I,2)=CMPLX(0.0D0,0.0D0)
+         AV(I,3)=CMPLX(0.0D0,0.0D0)
+ 20   CONTINUE
+      DT1=1.0D0*DELT*SIGMA
+ 
+C***  CALCULATE X,Y,Z POSITION IN COIL
+C***         (FIELD POINT)            
+      DZ=ZL/NZI
+      DR=RL/NRI
+      A0=AP+DR*0.5D0
+      Z0=ZP+DZ*0.5D0
+      DTH=2.0D0*PI/NTHI
+      ND=0
+      DO 10 I=1,NZI
+         ZPP=Z0+DZ*(I-1)
+         DO 10 J=1,NRI
+            A=A0+DR*(J-1)
+            DO 10 K=1,NTHI/2
+C***           ND IS A FIELD POINT
+               ND=ND+1
+               DEL=0.5D0*DTH+DTH*(K-1)-0.5D0*PI
+               XYZ(ND,1)=A*DCOS(DEL)+XP
+               XYZ(ND,2)=A*DSIN(DEL)+YP
+               XYZ(ND,3)=ZPP
+ 10   CONTINUE
+ 
+      DO 101 L=1,IMAX
+      DO 101 M=1,IMAX
+      DO 101 N=1,IMAX
+         CALL SHAPEF(GAUSS(L),GAUSS(M),GAUSS(N))
+         DO 1000 I=1,NELEM
+            DT=CMPLX(0.0D0, DT1)
+            JX=CMPLX(0.0D0,0.0D0)
+            JY=CMPLX(0.0D0,0.0D0)
+            XA=0.0D0
+            YA=0.0D0
+            ZA=0.0D0
+            CALL CJACOB(I,JACOBD)
+            G=GCOEF(L)*GCOEF(M)*GCOEF(N)*JACOBD*SS
+C***        CALCULATION OF EDDY CURRENT
+            DO 30 J=1,8
+               K=NOD(I,J)
+               XX= SIGMA*V(NP*3+K)
+               Y1=-SHAPE(J)*V(   K)*DT
+               Y2=-SHAPE(J)*V(NP+K)*DT
+               JX= JX-XX*DERIVC(1,J)+Y1
+               JY= JY-XX*DERIVC(2,J)+Y2
+               XA= XA+SHAPE(J)*XY(K,1)
+               YA= YA+SHAPE(J)*XY(K,2)
+               ZA= ZA+SHAPE(J)*XY(K,3)
+ 30         CONTINUE
+            DO 40 J=1,NF/2
+               X=(XYZ(J,1)-XA)**2
+               Y(J)=(XYZ(J,2)-YA)**2
+               Z(J)=(XYZ(J,3)-ZA)**2
+               R=G/DSQRT(X+Y(J)+Z(J))
+               AV(J,1)=AV(J,1)+JX*R
+               AV(J,2)=AV(J,2)+JY*R
+ 40         CONTINUE
+ 1000    CONTINUE
+ 101  CONTINUE
+ 
+      AT=CMPLX(0.0D0,0.0D0)
+      ND=0
+      DO 90 I=1,NZI
+      DO 90 J=1,NRI
+      A=A0+DR*(J-1)
+      DO 90 K=1,NTHI/2
+         ND=ND+1
+         DEL=0.5D0*DTH+DTH*(K-1)-0.5D0*PI
+         AT=AT+2.0D0*(-DSIN(DEL)*AV(ND,1)+DCOS(DEL)*AV(ND,2))*DTH*A
+ 90   CONTINUE
+      AT=AT*CMPLX(0.0D0,-DELT)*DBLE(TURN)*DBLE(TURN)/(NRI*NZI)/J0
+      WRITE(6,*) '    COIL IMPEDANCE:'
+      WRITE(6,2000) AT
+ 2000 FORMAT('     REAL =',E20.10, '   IMAGINARY =',E20.10)
+
+      RETURN
+      END
+      SUBROUTINE BANDWD(NK,JDG)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER NK(*),NOD(EMAX,8),JDG(*),
+     +     I,J,K,N,M,ND,NP,NELEM,BNP,BELEM
+      COMMON /B0/ NP,NELEM
+      COMMON /B5/ NOD
+      COMMON /BB0/ BNP, BELEM
+      DO 10 I=1,NP
+         NK(I)=0
+ 10   CONTINUE
+      DO 20 I=1,NELEM
+      DO 20 J=1,8
+         M=NOD(I,J)
+         IF (M.LE.NP) THEN
+            DO 30 K=1,8
+               N=NOD(I,K)
+               IF ((N.GE.M).AND.(N.LE.NP)) THEN
+                  ND=N-M+1
+                  IF (ND.GT.NK(N)) NK(N)=ND
+               ENDIF
+ 30         CONTINUE
+         ENDIF
+ 20   CONTINUE
+      JDG(1)=1
+      DO 40 I=2,NP
+         IF (I.LE.BNP) THEN
+            J=I
+         ELSE
+            J=NK(I)
+         ENDIF
+         JDG(I)=JDG(I-1)+J
+ 40   CONTINUE
+      DO 50 I=1,NP
+         JDG(I+NP)=JDG(NP)+JDG(I)
+         JDG(I+2*NP)=2*JDG(NP)+JDG(I)
+ 50   CONTINUE
+      DO 60 I=1,NP
+         JDG(I+3*NP)=JDG(I-1+3*NP)+NK(I)+3*NP
+ 60   CONTINUE
+      RETURN
+      END
+      SUBROUTINE BCALCO(V,XYF,BE,FNMAX,SIGMA,NF,DELT,IMAX)
+***   CALCULATION OF B FIELD OUTSIDE A CONDUCTOR DUE TO EDDY CURRENTS.
+      IMPLICIT NONE
+      INTEGER  EMAX,NMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER  FNMAX,NELEM,NP,IMAX,NF,
+     +     I,J,K,L,M,N,NOD(EMAX,8)
+      DOUBLE PRECISION DERIV(3,8),DERIVC(3,8),SHAPE(8),
+     +     DELT,JACOBD,G,XA,YA,ZA,R3,RA,X,Y,Z,
+     +     XY(NMAX,3),XYF(FNMAX,3),GAUSS(25),GCOEF(25),SIGMA,
+     +     MU,PI,SS,DT1
+      DOUBLE COMPLEX BE(FNMAX,3),V(*),JX,JY,JZ,DT,Y1,Y2,Y3,XX
+      COMMON /B0/  NP,NELEM
+      COMMON /B1/  GAUSS,GCOEF
+      COMMON /B3/  DERIV,DERIVC,SHAPE
+      COMMON /B5/  NOD
+      COMMON /B6/  XY
+      COMMON /DAT/ PI
+      MU=4.0D-7*PI
+      SS=0.25D0/PI*MU
+      DO 500 I=1,NF
+         BE(I,1)=CMPLX(0.0D0,0.0D0)
+         BE(I,2)=CMPLX(0.0D0,0.0D0)
+         BE(I,3)=CMPLX(0.0D0,0.0D0)
+ 500  CONTINUE
+      DT1=1.0D0*DELT*SIGMA
+      CALL CHANGE(GAUSS,GCOEF,IMAX)
+      DO 10 L=1,IMAX
+      DO 10 M=1,IMAX
+      DO 10 N=1,IMAX
+         CALL SHAPEF(GAUSS(L),GAUSS(M),GAUSS(N))
+         DO 1000 I=1,NELEM
+            DT=CMPLX(0.0D0, DT1)
+            JX=CMPLX(0.0D0,0.0D0)
+            JY=CMPLX(0.0D0,0.0D0)
+            JZ=CMPLX(0.0D0,0.0D0)
+            XA=0.0D0
+            YA=0.0D0
+            ZA=0.0D0
+            CALL CJACOB(I, JACOBD)
+            G=GCOEF(L)*GCOEF(M)*GCOEF(N)*JACOBD*SS
+C**   **************************************************
+C**   *****    CALCULATION OF  EDDY CURRENT   **********
+C**   **************************************************
+            DO 20 J=1,8
+               K=NOD(I,J)
+               XX= SIGMA*V(NP*3+K)
+               Y1=-SHAPE(J)*V(     K)*DT
+               Y2=-SHAPE(J)*V(NP  +K)*DT
+               Y3=-SHAPE(J)*V(NP*2+K)*DT
+               JX= JX-XX*DERIVC(1,J)+Y1
+               JY= JY-XX*DERIVC(2,J)+Y2
+               JZ= JZ-XX*DERIVC(3,J)+Y3
+               XA= XA+SHAPE(J)*XY(K,1)
+               YA= YA+SHAPE(J)*XY(K,2)
+               ZA= ZA+SHAPE(J)*XY(K,3)
+ 20         CONTINUE
+            DO 30 J=1,NF
+               X=XYF(J,1)-XA
+               Y=XYF(J,2)-YA
+               Z=XYF(J,3)-ZA
+               RA=DSQRT(X**2+Y**2+Z**2)
+               R3=G/RA**3
+               BE(J,1)=BE(J,1)+(JY*Z-JZ*Y)*R3
+               BE(J,2)=BE(J,2)+(JZ*X-JX*Z)*R3
+               BE(J,3)=BE(J,3)+(JX*Y-JY*X)*R3
+ 30         CONTINUE
+ 1000    CONTINUE
+ 10   CONTINUE
+      WRITE(9,*) '*********   REAL PART OF B FIELD   ******'
+      DO 310 I=1,NF
+         WRITE(9,91) (XYF(I,J),J=1,3),(REAL(BE(I,J)),J=1,3)
+ 310  CONTINUE
+      WRITE(9,*) '*********   IMAGINARY PART OF B FIELD   ******'
+      DO 320 I=1,NF
+         WRITE(9,91) (XYF(I,J),J=1,3),(DIMAG(BE(I,J)),J=1,3)
+ 320  CONTINUE
+ 91   FORMAT(3E12.4,3E14.6)
+      RETURN
+      END
+      SUBROUTINE BFSHAP(XI,ETA)
+      IMPLICIT NONE
+      DOUBLE PRECISION XI,ETA,A,XIP,ETAP,XIM,ETAM,
+     +      BSHAPE(4),BDERIV(2,4)
+      COMMON /BB3/BSHAPE,BDERIV
+      A=0.25D0
+      XIP =(1.0D0+XI)
+      XIM =(1.0D0-XI)
+      ETAP=(1.0D0+ETA)
+      ETAM=(1.0D0-ETA)
+      BSHAPE(1)=A*XIM*ETAM
+      BSHAPE(2)=A*XIP*ETAM
+      BSHAPE(3)=A*XIP*ETAP
+      BSHAPE(4)=A*XIM*ETAP
+      BDERIV(1,1)=-A*ETAM
+      BDERIV(1,2)= A*ETAM
+      BDERIV(1,3)= A*ETAP
+      BDERIV(1,4)=-A*ETAP
+      BDERIV(2,1)=-A*XIM
+      BDERIV(2,2)=-A*XIP
+      BDERIV(2,3)= A*XIP
+      BDERIV(2,4)= A*XIM
+      RETURN
+      END
+      SUBROUTINE BGAUSS(HH,GG,I1,I2)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER I,J,JJ,K,L,KL,N1,N2,IMAX,I1,I2,
+     +     BNOD(KMAX,4),BNP,BELEM,BN
+      DOUBLE PRECISION PI,XF,YF,ZF,XY(NMAX,3),
+     +     XS,YS,ZS,FX,FY,FZ,DS,G1,BSHAPE(4),BDERIV(2,4),
+     +     HH(I1,I2),GG(I1,I2),GAUSS(25),GCOEF(25),PQ,PQT,D,S,SS,X
+      COMMON /B1/  GAUSS, GCOEF
+      COMMON /B6/ XY
+      COMMON /BB0/ BNP, BELEM
+      COMMON /BB3/ BSHAPE, BDERIV
+      COMMON /BB5/ BNOD
+      COMMON /DAT/ PI
+      SS=0.25D0/PI
+      IMAX=7
+      CALL CHANGE(GAUSS,GCOEF,IMAX)
+C     ***********************)
+C     * SURFACE INTEGRATION *)
+C     ***********************)
+      BN=BMAX
+      DO 30 N1=1,IMAX
+      DO 30 N2=1,IMAX
+         G1=GCOEF(N1)*GCOEF(N2)
+         CALL BFSHAP(GAUSS(N1),GAUSS(N2))
+         DO 10 K=1,BELEM
+C      *****    CALCULATE COORDINATE OF SOURCE POINT    *****
+            CALL SOURCE(XS,YS,ZS,K)
+            CALL BJACOB(FX,FY,FZ,DS,K)
+            DO 299  J=1,BN
+C     ****   FIELD POINT ADDRESS   ****
+C     ****   (COLLOCATION POINT)   ****
+               XF=XY(J,1)
+               YF=XY(J,2)
+               ZF=XY(J,3)
+               PQ =1.D0/DSQRT((XF-XS)**2+(YF-YS)**2+(ZF-ZS)**2)
+               PQT=SS*G1*PQ**3
+               S  =SS*G1*DS*PQ
+               D  =PQT*(FX*(XS-XF)+FY*(YS-YF)+FZ*(ZS-ZF))
+               DO 32 L=1,4
+                  KL=BNOD(K,L)
+                  HH(J,KL)=HH(J,KL)+D*BSHAPE(L)
+                  GG(J,KL)=GG(J,KL)+S*BSHAPE(L)
+ 32            CONTINUE
+ 299        CONTINUE
+ 10      CONTINUE
+ 30   CONTINUE
+C**       ***************************************
+C**       CALCULATION OF HII  *******************
+C**       ***************************************
+      DO 35 JJ=1,BN
+         X=0.0D0
+         DO 34 I=1,BMAX
+            IF (I.NE.JJ) X=X+HH(JJ,I)
+ 34      CONTINUE
+         HH(JJ,JJ)=1.0D0-X
+ 35   CONTINUE
+      RETURN
+      END
+      SUBROUTINE BJACOB(FX,FY,FZ,DS,ELEM)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER  ELEM,BNOD(KMAX,4),I,J,K,N
+      DOUBLE PRECISION XY(NMAX,3),BSHAPE(4),BDERIV(2,4)
+      DOUBLE PRECISION FX,FY,FZ,DS,JACO(2,3)
+      COMMON /BB3/ BSHAPE, BDERIV
+      COMMON /BB5/ BNOD
+      COMMON /B6/  XY
+      DO 10 I=1,2
+      DO 10 J=1,3
+         JACO(I,J)=0.0D0
+ 10   CONTINUE
+      DO 20 K=1,4
+         N=BNOD(ELEM,K)
+         JACO(1,1)=JACO(1,1)+BDERIV(1,K)*XY(N,1)
+         JACO(1,2)=JACO(1,2)+BDERIV(1,K)*XY(N,2)
+         JACO(1,3)=JACO(1,3)+BDERIV(1,K)*XY(N,3)
+         JACO(2,1)=JACO(2,1)+BDERIV(2,K)*XY(N,1)
+         JACO(2,2)=JACO(2,2)+BDERIV(2,K)*XY(N,2)
+         JACO(2,3)=JACO(2,3)+BDERIV(2,K)*XY(N,3)
+ 20   CONTINUE
+      FX=JACO(1,2)*JACO(2,3)-JACO(2,2)*JACO(1,3)
+      FY=JACO(1,3)*JACO(2,1)-JACO(2,3)*JACO(1,1)
+      FZ=JACO(1,1)*JACO(2,2)-JACO(2,1)*JACO(1,2)
+      DS=DSQRT(FX*FX+FY*FY+FZ*FZ)
+      RETURN
+      END
+      SUBROUTINE BRHS(GG,F,FB,N,NP)
+      INTEGER N,NP,I,J
+      DOUBLE PRECISION GG(N,N)
+      COMPLEX*16 F(*),FB(*)
+      DO 10 I=1,NP*4
+         F(I)=CMPLX(0.0D0,0.0D0)
+ 10   CONTINUE
+      DO 20 I=1,N
+      DO 20 J=1,N
+         F(I)     =F(I)     +GG(I,J)*FB(J)
+         F(I+NP)  =F(I+NP)  +GG(I,J)*FB(J+NP)
+         F(I+NP*2)=F(I+NP*2)+GG(I,J)*FB(J+NP*2)
+ 20   CONTINUE
+      RETURN
+      END
+      SUBROUTINE CALAEX(FB,S2,XY,NMAX,BMAX,XP,YP,ZP,NUM)
+      IMPLICIT NONE
+      INTEGER I,NMAX,BMAX,NUM,NR,NZ,J,K,NX,NY,N,TURN
+      DOUBLE PRECISION XY(NMAX,3),S2,K2,K1,A,COEF,PI,
+     +     Z0,X1,Y1,Z1,XO,YO,ZO,J0,JP,ZLNGTH,RLNGTH,
+     +     A0,AP,XP,YP,ZP,Q1,Q2,ZPP,DR,DZ,RO,AS,AX,AY,AZ,
+     +     XT,YT,ZT,DX,DY,XC0,YC0,ZC0,JX,DV,XS,YS,ZS,
+     +     R,LFTOFF
+      COMPLEX*16 FB(*)
+      DOUBLE PRECISION FELP,SELP
+      COMMON /CPARAM/ JP,ZLNGTH,RLNGTH,AP,NZ,NR,TURN,LFTOFF
+      COMMON /DAT/ PI
+ 
+      DO 111 I=1, 4*NMAX
+        FB(I)=CMPLX(0.0D0,0.0D0)
+ 111  CONTINUE
+      IF (NUM.EQ.1) GOTO 991
+      IF (NUM.EQ.2) GOTO 992
+      IF (NUM.EQ.3) GOTO 992
+      IF (NUM.EQ.4) GOTO 993
+
+ 991  CONTINUE
+C***** UNIFORM FIELD
+      DO 118 I=1,BMAX
+         FB(I)     =CMPLX(-XY(I,2)*0.5D0,0.0D0)
+         FB(I+NMAX)=CMPLX( XY(I,1)*0.5D0,0.0D0)
+ 118  CONTINUE
+      GOTO 999
+
+ 992  CONTINUE
+C**** COIL CURRENT
+      DZ=ZLNGTH/NZ
+      DR=RLNGTH/NR
+      J0=JP/(NZ*NR)
+      A0=AP+DR*0.5D0
+      Z0=ZP+DZ*0.5D0
+      XO=0.0D0
+      YO=0.0D0
+      ZO=0.0D0
+      DO 20 K=1,NZ
+         ZPP=Z0+DZ*(K-1)
+         DO 30 J=1,NR
+            A=A0+DR*(J-1)
+            DO 10 I=1,BMAX
+               X1=XY(I,1)
+               Y1=XY(I,2)
+               Z1=XY(I,3)
+               IF (NUM.EQ.3) CALL RAS(XO,YO,ZO,X1,Y1,Z1)
+               RO=DSQRT((X1-XP)**2+(Y1-YP)**2)
+               K2=4.0D0*A*RO/((A+RO)**2+(Z1-ZPP)**2)
+               K1=DSQRT(K2)
+               IF (RO.LT.1.0D-20) THEN
+                  COEF=0.0D0
+                  RO=1.0D0
+               ELSE
+                  COEF=S2*J0/(PI*K1)*DSQRT(A/RO)
+               ENDIF
+               Q1=FELP(K2)
+               Q2=SELP(K2)
+               AS= COEF*((1.0D0-0.5D0*K2)*Q1-Q2)
+               AX=-AS/RO*(Y1-YP)
+               AY= AS/RO*(X1-XP)
+               AZ= 0.0D0
+               IF (NUM.EQ.3) 
+     +              CALL RAS(0.0D0,0.0D0,0.0D0,AX,AY,AZ)
+               FB(I)       =FB(I)       +CMPLX(AX,0.0D0)
+               FB(I+  NMAX)=FB(I+  NMAX)+CMPLX(AY,0.0D0)
+               FB(I+2*NMAX)=FB(I+2*NMAX)+CMPLX(AZ,0.0D0)
+ 10         CONTINUE
+ 30      CONTINUE
+ 20   CONTINUE
+      GOTO 999
+
+ 993  CONTINUE
+C**** SHEET CURRENT
+      XT=60.0D-3
+      YT=1.0D-3
+      ZT=1.0D-3
+C**   NUMBER OF SUB-DIVISION
+      NX=100
+      NY=5
+      NZ=5
+      DX=XT/NX
+      DY=YT/NY
+      DZ=ZT/NZ
+C     ORIGIN OF THE SHEET
+      XC0=0.0
+      YC0=0.0
+      ZC0=1.0E-3
+      JX=JP/(YT*ZT)
+      DV=DX*DY*DZ*S2*0.25/PI
+      DO 803 I=1,NX
+      DO 803 J=1,NY
+      DO 803 K=1,NZ
+         XS=XC0-0.5*XT+DX*(I-1)+0.5*DX
+         YS=YC0-0.5*YT+DY*(J-1)+0.5*DY
+         ZS=ZC0-0.5*ZT+DZ*(K-1)+0.5*DZ
+         DO 803 N=1, NMAX
+            R=DSQRT((XS-XY(N,1))**2+(YS-XY(N,2))**2+(ZS-XY(N,3))**2)
+            FB(N)=FB(N)+JX*DV/R
+ 803  CONTINUE
+ 
+ 999  CONTINUE
+      RETURN
+      END
+      SUBROUTINE CALCMA(MU,M,BN1,BN2)
+C     *****  CALCULATION OF DISTRIBUTION MATRIX   **********
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX,BN1,BN2
+      INCLUDE 'RMINC'
+      INTEGER I,J,K,N1,N2,IMAX,BNOD(KMAX,4),BNP,BELEM
+      DOUBLE PRECISION G,FX,FY,FZ,DS,M(BN1,BN2),MM(KMAX,4,4),
+     +     GAUSS(25),GCOEF(25),BSHAPE(4),BDERIV(2,4),MU
+      COMMON /B1/  GAUSS,GCOEF
+      COMMON /BB0/ BNP,BELEM
+      COMMON /BB3/ BSHAPE,BDERIV
+      COMMON /BB5/ BNOD
+      COMMON /BB9/ MM
+      DO 10 I=1, BELEM
+      DO 10 J=1,4
+      DO 10 K=1,4
+         MM(I,J,K)=0.0D0
+ 10   CONTINUE
+      IMAX=7
+      CALL CHANGE(GAUSS,GCOEF,IMAX)
+      DO 20 I=1,BELEM
+      DO 20 N1=1,IMAX
+      DO 20 N2=1,IMAX
+         CALL BFSHAP(GAUSS(N1),GAUSS(N2))
+         CALL BJACOB(FX,FY,FZ,DS,I)
+         G=GCOEF(N1)*GCOEF(N2)*DS
+         DO 30 J=1,4
+         DO 30 K=1,4
+            MM(I,J,K)=MM(I,J,K)+BSHAPE(J)*BSHAPE(K)*G
+ 30      CONTINUE
+ 20   CONTINUE
+      DO 40 K=1,BELEM
+      DO 40 I=1,4
+         N1=BNOD(K,I)
+         DO 50 J=1, 4
+            N2=BNOD(K,J)
+            M(N1,N2)=M(N1,N2)+MM(K,I,J)
+ 50      CONTINUE
+ 40   CONTINUE
+      DO 45 I=1,BN1
+      DO 45 J=1,BN2
+         M(I,J)=M(I,J)/MU
+ 45   CONTINUE
+      RETURN
+      END
+      SUBROUTINE CFMTRX(JDIAG,A,H,BNP,DT)
+      IMPLICIT NONE
+      INTEGER BNP,NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER NOD(EMAX,8),JDIAG(*),I,J,K,M,N,ND,NP,NELEM
+      DOUBLE PRECISION H(BNP,BNP),DT,
+     +     N1(EMAX,8,8),N2(EMAX,8,8), N1D(EMAX,8,8),
+     +     N3A(EMAX,8,8),N3B(EMAX,8,8), N3C(EMAX,8,8)
+      COMPLEX*16  A(*)
+      COMMON /B0/ NP,NELEM
+      COMMON /B5/ NOD
+      COMMON /B7/ N1,N2,N1D,N3A,N3B,N3C
+      DO 999 I=1,JDIAG(4*NP)
+         A(I)=CMPLX(0.0D0,0.0D0)
+ 999  CONTINUE
+C     *** DT **   FREQUENCY
+      DO 10 I=1,NELEM
+      DO 10 J=1,8
+         M=NOD(I,J)
+         DO 30 K=1,8
+            N=NOD(I,K)
+            IF (N.GE.M) THEN
+               ND=JDIAG(N)-N+M
+               A(ND)=A(ND)+CMPLX(N1(I,J,K),N2(I,J,K)*DT)
+            ENDIF
+ 30      CONTINUE
+ 10   CONTINUE
+      DO 90 J=1,BNP
+      DO 90 I=1,J
+         K=I+((J-1)*J)/2
+         A(K)=A(K)+CMPLX(H(I,J),0.0D0)
+ 90   CONTINUE
+      DO 40 I=1,JDIAG(NP)
+         A(I+JDIAG(NP))  =A(I)
+         A(I+2*JDIAG(NP))=A(I)
+ 40   CONTINUE
+      DO 50 I=1,NELEM
+      DO 50 J=1,8
+         M=NOD(I,J)
+         DO 60 K=1,8
+            N=NOD(I,K)
+            ND=JDIAG(N+3*NP)-N+M-3*NP
+            A(ND)=A(ND)+CMPLX(N3A(I,J,K),0.0D0)
+            ND=JDIAG(N+3*NP)-N+M-2*NP
+            A(ND)=A(ND)+CMPLX(N3B(I,J,K),0.0D0)
+            ND=JDIAG(N+3*NP)-N+M-NP
+            A(ND)=A(ND)+CMPLX(N3C(I,J,K),0.0D0)
+            IF (N.GE.M) THEN
+               ND=JDIAG(N+3*NP)-N+M
+               A(ND)=A(ND)+CMPLX(0.0D0,-N1D(I,J,K)/DT)
+            ENDIF
+ 60      CONTINUE
+ 50   CONTINUE
+      RETURN
+      END
+      SUBROUTINE CHANGE(GAUSS,GCOEF,N)
+      IMPLICIT NONE
+      INTEGER N
+      DOUBLE PRECISION GAUSS(*),GCOEF(*)
+      IF (N.EQ.3)  GOTO 103
+      IF (N.EQ.5)  GOTO 105
+      IF (N.EQ.7)  GOTO 107
+      IF (N.EQ.9)  GOTO 109
+      IF (N.EQ.10) GOTO 110
+      IF (N.EQ.11) GOTO 111
+      IF (N.EQ.13) GOTO 113
+      IF (N.EQ.15) GOTO 115
+      IF (N.EQ.25) GOTO 125
+      WRITE(*,*) 'ERROR'
+      STOP
+ 103  CONTINUE
+      GAUSS(1)= 0.774596669241483D0
+      GAUSS(2)= 0.0D0
+      GAUSS(3)=-0.774596669241483D0
+      GCOEF(1)= 0.555555555555556D0
+      GCOEF(2)= 0.888888888888889D0
+      GCOEF(3)= 0.555555555555556D0
+      RETURN
+ 105  CONTINUE
+      GAUSS(1)= 0.906179845938664D0
+      GAUSS(2)= 0.538469310105683D0
+      GAUSS(3)= 0.0D0
+      GAUSS(4)=-0.538469310105683D0
+      GAUSS(5)=-0.906179845938664D0
+      GCOEF(1)= 0.236926885056189D0
+      GCOEF(2)= 0.478628670499366D0
+      GCOEF(3)= 0.568888888888889D0
+      GCOEF(4)= 0.478628670499366D0
+      GCOEF(5)= 0.236926885056189D0
+      RETURN
+ 107  CONTINUE
+      GAUSS(1)= 0.949107912342759D0
+      GAUSS(2)= 0.741531185599394D0
+      GAUSS(3)= 0.405845151377397D0
+      GAUSS(4)= 0.0D0
+      GAUSS(5)=-0.405845151377397D0
+      GAUSS(6)=-0.741531185599394D0
+      GAUSS(7)=-0.949107912342759D0
+      GCOEF(1)= 0.129484966168870D0
+      GCOEF(2)= 0.279705391489277D0
+      GCOEF(3)= 0.381830050505119D0
+      GCOEF(4)= 0.417959183673469D0
+      GCOEF(5)= 0.381830050505119D0
+      GCOEF(6)= 0.279705391489277D0
+      GCOEF(7)= 0.129484966168870D0
+      RETURN
+ 109  CONTINUE
+      GAUSS(1)= 0.968160239507626D0
+      GAUSS(2)= 0.836031107326636D0
+      GAUSS(3)= 0.613371432700590D0
+      GAUSS(4)= 0.324253423403809D0
+      GAUSS(5)= 0.0D0
+      GAUSS(6)=-0.324253423403809D0
+      GAUSS(7)=-0.613371432700590D0
+      GAUSS(8)=-0.836031107326636D0
+      GAUSS(9)=-0.968160239507626D0
+      GCOEF(1)= 0.081274388361574D0
+      GCOEF(2)= 0.180648160694857D0
+      GCOEF(3)= 0.260610696402935D0
+      GCOEF(4)= 0.312347077040003D0
+      GCOEF(5)= 0.330239355001260D0
+      GCOEF(6)= 0.312347077040003D0
+      GCOEF(7)= 0.260610696402935D0
+      GCOEF(8)= 0.180648160694857D0
+      GCOEF(9)= 0.081274388361574D0
+      RETURN
+ 110  CONTINUE
+      GAUSS(1) = 0.973906528517172D0
+      GAUSS(2) = 0.865063366688985D0
+      GAUSS(3) = 0.679409568299024D0
+      GAUSS(4) = 0.433395394129247D0
+      GAUSS(5) = 0.148874338981631D0
+      GAUSS(6) =-0.148874338981631D0
+      GAUSS(7) =-0.433395394129247D0
+      GAUSS(8) =-0.679409568299024D0
+      GAUSS(9) =-0.865063366688985D0
+      GAUSS(10)=-0.973906528517172D0
+      GCOEF(1) = 0.066671344308688D0
+      GCOEF(2) = 0.149451349150581D0
+      GCOEF(3) = 0.219086362515982D0
+      GCOEF(4) = 0.269266719309996D0
+      GCOEF(5) = 0.295524224714753D0
+      GCOEF(6) = 0.295524224714753D0
+      GCOEF(7) = 0.269266719309996D0
+      GCOEF(8) = 0.219086362515982D0
+      GCOEF(9) = 0.149451349150581D0
+      GCOEF(10)= 0.066671344308688D0
+      RETURN
+ 111  CONTINUE
+      GAUSS(1) = 0.978228658146057D-0
+      GAUSS(2) = 0.887062599768095D-0
+      GAUSS(3) = 0.730152005574049D-0
+      GAUSS(4) = 0.519096129206812D-0
+      GAUSS(5) = 0.269543155952345D-0
+      GAUSS(6) = 0.000000000000000D-0
+      GAUSS(7) = -GAUSS(5)
+      GAUSS(8) = -GAUSS(4)
+      GAUSS(9) = -GAUSS(3)
+      GAUSS(10)= -GAUSS(2)
+      GAUSS(11)= -GAUSS(1)
+      GCOEF(1) = 0.055668567116174D-0
+      GCOEF(2) = 0.125580369464905D-0
+      GCOEF(3) = 0.186290210927734D-0
+      GCOEF(4) = 0.233193764591990D-0
+      GCOEF(5) = 0.262804544510247D-0
+      GCOEF(6) = 0.272925086777901D-0
+      GCOEF(7) = GCOEF(5)
+      GCOEF(8) = GCOEF(4)
+      GCOEF(9) = GCOEF(3)
+      GCOEF(10)= GCOEF(2)
+      GCOEF(11)= GCOEF(1)
+      RETURN
+ 113  CONTINUE
+      GAUSS(1) = 0.984183054718588D-0
+      GAUSS(2) = 0.917598399222978D-0
+      GAUSS(3) = 0.801578090733310D-0
+      GAUSS(4) = 0.642349339440340D-0
+      GAUSS(5) = 0.448492751036447D-0
+      GAUSS(6) = 0.230458315955135D-0
+      GAUSS(7) = 0.000000000000000D-0
+      GAUSS(8) = -GAUSS(6)
+      GAUSS(9) = -GAUSS(5)
+      GAUSS(10)= -GAUSS(4)
+      GAUSS(11)= -GAUSS(3)
+      GAUSS(12)= -GAUSS(2)
+      GAUSS(13)= -GAUSS(1)
+      GCOEF(1) = 0.040484004763516D-0
+      GCOEF(2) = 0.092121499837728D-0
+      GCOEF(3) = 0.138873510219787D-0
+      GCOEF(4) = 0.178145980761946D-0
+      GCOEF(5) = 0.207816047536889D-0
+      GCOEF(6) = 0.226283180262897D-0
+      GCOEF(7) = 0.232551553230874D-0
+      GCOEF(8) = GCOEF(6)
+      GCOEF(9) = GCOEF(5)
+      GCOEF(10)= GCOEF(4)
+      GCOEF(11)= GCOEF(3)
+      GCOEF(12)= GCOEF(2)
+      GCOEF(13)= GCOEF(1)
+      RETURN
+ 115  CONTINUE
+      GAUSS(1) = 0.987992518020485D-0
+      GAUSS(2) = 0.937273392400706D-0
+      GAUSS(3) = 0.848206583410427D-0
+      GAUSS(4) = 0.724417731360170D-0
+      GAUSS(5) = 0.570972172608539D-0
+      GAUSS(6) = 0.394151347077563D-0
+      GAUSS(7) = 0.201194093997435D-0
+      GAUSS(8) = 0.000000000000000D-0
+      GAUSS(9) = -GAUSS(7)
+      GAUSS(10)= -GAUSS(6)
+      GAUSS(11)= -GAUSS(5)
+      GAUSS(12)= -GAUSS(4)
+      GAUSS(13)= -GAUSS(3)
+      GAUSS(14)= -GAUSS(2)
+      GAUSS(15)= -GAUSS(1)
+      GCOEF(1) = 0.307532419961173D-1
+      GCOEF(2) = 0.703660474881081D-1
+      GCOEF(3) = 0.107159220467172D-0
+      GCOEF(4) = 0.139570677926154D-0
+      GCOEF(5) = 0.166269205816994D-0
+      GCOEF(6) = 0.186161000015562D-0
+      GCOEF(7) = 0.198431485327112D-0
+      GCOEF(8) = 0.202578241925561D-0
+      GCOEF(9) = GCOEF(7)
+      GCOEF(10)= GCOEF(6)
+      GCOEF(11)= GCOEF(5)
+      GCOEF(12)= GCOEF(4)
+      GCOEF(13)= GCOEF(3)
+      GCOEF(14)= GCOEF(2)
+      GCOEF(15)= GCOEF(1)
+      RETURN
+ 125  CONTINUE
+      GAUSS(1) = 0.995556969790498D-0
+      GAUSS(2) = 0.976663921459518D-0
+      GAUSS(3) = 0.942974571228974D-0
+      GAUSS(4) = 0.894991997878275D-0
+      GAUSS(5) = 0.833442628760834D-0
+      GAUSS(6) = 0.759259263037358D-0
+      GAUSS(7) = 0.673566368473468D-0
+      GAUSS(8) = 0.577662930241223D-0
+      GAUSS(9) = 0.473002731445715D-0
+      GAUSS(10)= 0.361172305809388D-0
+      GAUSS(11)= 0.243866883720988D-0
+      GAUSS(12)= 0.122864692610710D-0
+      GAUSS(13)= 0.000000000000000D-0
+      GAUSS(14)= -GAUSS(12)
+      GAUSS(15)= -GAUSS(11)
+      GAUSS(16)= -GAUSS(10)
+      GAUSS(17)= -GAUSS(9)
+      GAUSS(18)= -GAUSS(8)
+      GAUSS(19)= -GAUSS(7)
+      GAUSS(20)= -GAUSS(6)
+      GAUSS(21)= -GAUSS(5)
+      GAUSS(22)= -GAUSS(4)
+      GAUSS(23)= -GAUSS(3)
+      GAUSS(24)= -GAUSS(2)
+      GAUSS(25)= -GAUSS(1)
+      GCOEF(1) = 0.113937985010263D-1
+      GCOEF(2) = 0.263549866150321D-1
+      GCOEF(3) = 0.409391567013063D-1
+      GCOEF(4) = 0.549046959758352D-1
+      GCOEF(5) = 0.680383338123569D-1
+      GCOEF(6) = 0.801407003350010D-1
+      GCOEF(7) = 0.910282619829636D-1
+      GCOEF(8) = 0.100535949067051D-0
+      GCOEF(9) = 0.108519624474264D-0
+      GCOEF(10)= 0.114858259145712D-0
+      GCOEF(11)= 0.119455763535785D-0
+      GCOEF(12)= 0.122242442990310D-0
+      GCOEF(13)= 0.123176053726715D-0
+      GCOEF(14)= GCOEF(12)
+      GCOEF(15)= GCOEF(11)
+      GCOEF(16)= GCOEF(10)
+      GCOEF(17)= GCOEF(9)
+      GCOEF(18)= GCOEF(8)
+      GCOEF(19)= GCOEF(7)
+      GCOEF(20)= GCOEF(6)
+      GCOEF(21)= GCOEF(5)
+      GCOEF(22)= GCOEF(4)
+      GCOEF(23)= GCOEF(3)
+      GCOEF(24)= GCOEF(2)
+      GCOEF(25)= GCOEF(1)
+      RETURN
+      END
+      SUBROUTINE CJACOB(NELEM,JACOBD)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER NELEM,I,J,K,NOD(EMAX,8)
+      DOUBLE PRECISION XY(NMAX,3),JACOBD,JACOB(3,3),
+     +     JACOBI(3,3),DERIV(3,8),DERIVC(3,8),SHAPE(8)
+      COMMON /B3/DERIV, DERIVC, SHAPE
+      COMMON /B2/JACOB, JACOBI
+      COMMON /B5/ NOD
+      COMMON /B6/ XY
+      DO 10 I=1,3
+      DO 10 J=1,3
+         JACOB(I,J)=0.0D0
+ 10   CONTINUE
+      DO 20 I=1,8
+         K=NOD(NELEM,I)
+         DO 30 J=1, 3
+            JACOB(J,1)=JACOB(J,1)+DERIV(J,I)*XY(K,1)
+            JACOB(J,2)=JACOB(J,2)+DERIV(J,I)*XY(K,2)
+            JACOB(J,3)=JACOB(J,3)+DERIV(J,I)*XY(K,3)
+ 30      CONTINUE
+ 20   CONTINUE
+      JACOBD=JACOB(1,1)*JACOB(2,2)*JACOB(3,3)
+     &      +JACOB(1,2)*JACOB(2,3)*JACOB(3,1)
+     &      +JACOB(2,1)*JACOB(3,2)*JACOB(1,3)
+     &      -JACOB(1,3)*JACOB(2,2)*JACOB(3,1)
+     &      -JACOB(1,2)*JACOB(2,1)*JACOB(3,3)
+     &      -JACOB(1,1)*JACOB(2,3)*JACOB(3,2)
+      JACOBD=ABS(JACOBD)
+      JACOBI(1,1)=JACOB(2,2)*JACOB(3,3)-JACOB(2,3)*JACOB(3,2)
+      JACOBI(1,2)=JACOB(1,3)*JACOB(3,2)-JACOB(1,2)*JACOB(3,3)
+      JACOBI(1,3)=JACOB(1,2)*JACOB(2,3)-JACOB(1,3)*JACOB(2,2)
+      JACOBI(2,1)=JACOB(2,3)*JACOB(3,1)-JACOB(2,1)*JACOB(3,3)
+      JACOBI(2,2)=JACOB(1,1)*JACOB(3,3)-JACOB(1,3)*JACOB(3,1)
+      JACOBI(2,3)=JACOB(1,3)*JACOB(2,1)-JACOB(1,1)*JACOB(2,3)
+      JACOBI(3,1)=JACOB(2,1)*JACOB(3,2)-JACOB(2,2)*JACOB(3,1)
+      JACOBI(3,2)=JACOB(1,2)*JACOB(3,1)-JACOB(1,1)*JACOB(3,2)
+      JACOBI(3,3)=JACOB(1,1)*JACOB(2,2)-JACOB(1,2)*JACOB(2,1)
+      DO 40 I=1,3
+      DO 40 J=1,3
+         JACOBI(I,J)=JACOBI(I,J)/JACOBD
+ 40   CONTINUE
+      DO 50 I=1,8
+      DO 50 J=1,3
+         DERIVC(J,I)=JACOBI(J,1)*DERIV(1,I)+JACOBI(J,2)*DERIV(2,I)
+     &              +JACOBI(J,3)*DERIV(3,I)
+ 50   CONTINUE
+      RETURN
+      END
+      SUBROUTINE CLEAR(HH,GG,V,F,IB1,IB2)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER NP,NELEM,I,J,K,IB1,IB2,BNP,BELEM
+      DOUBLE PRECISION HH(IB1,IB2),GG(IB1,IB2),
+     +     N1(EMAX,8,8), N2(EMAX,8,8), N1D(EMAX,8,8),
+     +     N3A(EMAX,8,8),N3B(EMAX,8,8),N3C(EMAX,8,8)
+      COMPLEX*16 V(*),F(*)
+      COMMON /B0/ NP,NELEM
+      COMMON /B7/ N1,N2,N1D,N3A,N3B,N3C
+      COMMON /BB0/BNP,BELEM
+      DO 15 I=1,IB1
+      DO 15 J=1,IB2
+         HH(I,J)=0.D0
+         GG(I,J)=0.D0
+ 15   CONTINUE
+      DO 10 K=1,NELEM
+         DO 20 I=1,8
+         DO 20 J=1,8
+            N1(K,I,J) =0.D0
+            N2(K,I,J) =0.D0
+            N1D(K,I,J)=0.D0
+            N3A(K,I,J)=0.D0
+            N3B(K,I,J)=0.D0
+            N3C(K,I,J)=0.D0
+ 20      CONTINUE
+ 10   CONTINUE
+      DO 30 I=1,4*NP
+         V(I)=CMPLX(0.D0,0.D0)
+         F(I)=CMPLX(0.D0,0.D0)
+ 30   CONTINUE
+      RETURN
+      END
+      DOUBLE PRECISION FUNCTION FELP(AK)
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+C     #####AK=K**2 #####
+      IF( AK .GE. 1. ) THEN
+         WRITE(*,100) AK
+ 100     FORMAT(1H ,'***** PARAMETER ERROR: TOO LARGE  K=',
+     &        F10.6,'  >=1.   IN FELP()')
+         FELP=1E10
+         RETURN
+      ELSE IF( AK .LT. 0. ) THEN
+         WRITE(*,110) AK
+ 110     FORMAT(1H ,'***** PARAMETER ERROR: NAGATIVE  K=',
+     &        F10.6,'  <0.   IN FELP()')
+         FELP=1.570796
+         RETURN
+      ENDIF
+      A=1.
+      B=SQRT(1.-AK)
+      DO 10 N=1,100
+         AN=(A+B)*0.5
+         BN=SQRT(A*B)
+         IF( (AN-BN).LT.(AN*2E-7) ) GOTO 11
+         A=AN
+         B=BN
+ 10   CONTINUE
+      WRITE(*,200) AK
+ 200  FORMAT(1H ,'***** NO CONVERGENCE   K=',F10.7,'  IN FELP()')
+ 11   FELP=3.14159265/(AN+BN)
+      RETURN
+      END
+C
+      DOUBLE PRECISION FUNCTION SELP(AK)
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+      IF( AK .GE. 1. ) THEN
+         WRITE(*,100) AK
+ 100     FORMAT(1H ,'***** PARAMETER ERROR: TOO LARGE  K=',
+     &        F10.6,'  >=1.   IN SELP()')
+         SELP=1.
+         RETURN
+      ELSE IF( AK .LT. 0. ) THEN
+         WRITE(*,110) AK
+ 110     FORMAT(1H ,'***** PARAMETER ERROR: NAGATIVE  K=',
+     &        F10.6,'  <0.   IN SELP()')
+         SELP=1.570796
+         RETURN
+      ENDIF
+      A=1.
+      B=SQRT(1.-AK)
+      CK=0.5
+      SELP=(A*A-B*B)*CK
+      DO 10 N=1,100
+         AN=(A+B)*0.5
+         BN=SQRT(A*B)
+         CK=CK*2.
+         SELP=SELP+(AN*AN-BN*BN)*CK
+         IF( (AN-BN).LT.(AN*2E-7) ) GOTO 11
+         A=AN
+         B=BN
+ 10   CONTINUE
+      WRITE(*,200) AK
+ 200  FORMAT(1H ,'***** NO CONVERGENCE   K=',F10.7,'  IN SELP()')
+ 11   SELP=(1.-SELP)*3.14159265/(AN+BN)
+      RETURN
+      END
+      SUBROUTINE FEMINT(NELEM, IMAX)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER NELEM,I,J,K,L,M,N,NOD(EMAX,8),IMAX
+      DOUBLE PRECISION XY(NMAX,3),G,JACOBD,SIGMA,MU,
+     +     N1(EMAX,8,8), N2(EMAX,8,8), N1D(EMAX,8,8),
+     +     N3A(EMAX,8,8),N3B(EMAX,8,8),N3C(EMAX,8,8),
+     +     GAUSS(25),GCOEF(25),DERIV(3,8),DERIVC(3,8),SHAPE(8)
+      COMMON /PARA/ SIGMA, MU
+      COMMON /B1/ GAUSS, GCOEF
+      COMMON /B3/ DERIV, DERIVC, SHAPE
+      COMMON /B5/ NOD
+      COMMON /B6/ XY
+      COMMON /B7/ N1, N2, N1D, N3A, N3B, N3C
+      DO 10 L=1,IMAX
+      DO 10 M=1,IMAX
+      DO 10 N=1,IMAX
+         CALL SHAPEF(GAUSS(L),GAUSS(M),GAUSS(N))
+         CALL CJACOB(NELEM, JACOBD)
+         G=GCOEF(L)*GCOEF(M)*GCOEF(N)*JACOBD
+         DO 20 I=1,8
+         DO 20 K=I,8
+            DO 40 J=1,3
+               N1(NELEM,I,K)=N1(NELEM,I,K)+DERIVC(J,K)*DERIVC(J,I)*G
+ 40         CONTINUE
+            N2(NELEM,I,K)=N2(NELEM,I,K)+SHAPE(I)*SHAPE(K)*G
+ 20      CONTINUE
+        DO 25 I=1, 8
+        DO 25 K=1, 8
+           N3A(NELEM,I,K)=N3A(NELEM,I,K)+SHAPE(I)*DERIVC(1,K)*G
+           N3B(NELEM,I,K)=N3B(NELEM,I,K)+SHAPE(I)*DERIVC(2,K)*G
+           N3C(NELEM,I,K)=N3C(NELEM,I,K)+SHAPE(I)*DERIVC(3,K)*G
+ 25     CONTINUE
+ 10   CONTINUE
+      DO 50 I=2,8
+      DO 50 K=1,I-1
+         N1(NELEM,I,K)=N1(NELEM,K,I)
+         N2(NELEM,I,K)=N2(NELEM,K,I)
+ 50   CONTINUE
+      DO 60 I=1,8
+      DO 60 K=1,8
+         N1D(NELEM,I,K)=N1(NELEM,I,K) *SIGMA
+         N3A(NELEM,I,K)=N3A(NELEM,I,K)*SIGMA
+         N3B(NELEM,I,K)=N3B(NELEM,I,K)*SIGMA
+         N3C(NELEM,I,K)=N3C(NELEM,I,K)*SIGMA
+         N2(NELEM,I,K) =N2(NELEM,I,K) *SIGMA
+         N1(NELEM,I,K) =N1(NELEM,I,K)/MU
+ 60   CONTINUE
+      RETURN
+      END
+      SUBROUTINE INPUT(FR,S1,FNMAX,XYF,NF)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER NP,NELEM,NOD(EMAX,8),I,J,DUMMY,
+     +     NZ0,NR0,BNP,BELEM,BNOD(KMAX,4),FNMAX,NF,TURN
+      DOUBLE PRECISION XY(NMAX,3),FR,S1,XYF(FNMAX,3),
+     +     J0,ZLNGTH,RLNGTH,A0,LFTOFF
+      COMMON /BB0/ BNP,BELEM
+      COMMON /BB5/ BNOD
+      COMMON /B0/ NP,NELEM
+      COMMON /B5/ NOD
+      COMMON /B6/ XY
+      COMMON /CPARAM/ J0,ZLNGTH,RLNGTH,A0,NZ0,NR0,TURN,LFTOFF
+
+      READ(1,*)  NP,NELEM,DUMMY
+      IF (NMAX.NE.NP)    STOP ' NP ERROR '
+      IF (EMAX.NE.NELEM) STOP ' NELEM ERROR '
+      DO 1 I=1,NP
+ 1       READ(1,*) (XY(I,J),J=1,3)
+      DO 2 I=1,NELEM
+ 2       READ(1,*) (NOD(I,J),J=1,8)
+      READ(1,*) BNP,BELEM
+      IF (BMAX.NE.BNP)   STOP ' BNP ERROR '
+      IF (KMAX.NE.BELEM) STOP ' BELEM ERROR '
+      DO 13 I=1,BELEM
+ 13      READ(1,*) (BNOD(I,J),J=1,4)
+
+      READ(4,*) S1
+      READ(4,*) FR,J0,TURN
+      READ(4,*) ZLNGTH,RLNGTH,A0,LFTOFF
+      READ(4,*) NZ0,NR0
+
+      RETURN
+      END
+      SUBROUTINE JCALC(V,SIGMA,DELT)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER  NELEM,NP,I,J,K,NOD(EMAX,8)
+      DOUBLE PRECISION DERIV(3,8),DERIVC(3,8),SHAPE(8),
+     +     XA(EMAX),YA(EMAX),ZA(EMAX),XY(NMAX,3),
+     +     XP,YP,ZP,JACOBD,DELT,SIGMA
+      COMPLEX*16 V(*),DT,JX(EMAX),JY(EMAX),JZ(EMAX),
+     +     Y1,Y2,Y3,X
+      COMMON /B0/  NP,NELEM
+      COMMON /B3/  DERIV,DERIVC,SHAPE
+      COMMON /B5/  NOD
+      COMMON /B6/  XY
+      COMMON /B10/ JX,JY,JZ,XA,YA,ZA
+      DO 90 I=1,NELEM
+         JX(I)=CMPLX(0.0D0,0.0D0)
+         JY(I)=CMPLX(0.0D0,0.0D0)
+         JZ(I)=CMPLX(0.0D0,0.0D0)
+         XA(I)=0.0D0
+         YA(I)=0.0D0
+         ZA(I)=0.0D0
+ 90   CONTINUE
+      XP=0.D0
+      YP=0.D0
+      ZP=0.D0
+      CALL SHAPEF(XP,YP,ZP)
+      DO 10 I=1,NELEM
+         CALL CJACOB(I,JACOBD)
+         DT=CMPLX(0.D0,DELT*SIGMA)
+         DO 15 J=1,8
+            K=NOD(I,J)
+            X = SIGMA*V(NP*3+K)
+            Y1=-SHAPE(J)*V(     K)*DT
+            Y2=-SHAPE(J)*V(NP  +K)*DT
+            Y3=-SHAPE(J)*V(NP*2+K)*DT
+            JX(I)=JX(I) -X*DERIVC(1,J)+Y1
+            JY(I)=JY(I) -X*DERIVC(2,J)+Y2
+            JZ(I)=JZ(I) -X*DERIVC(3,J)+Y3
+            XA(I)=XA(I)+SHAPE(J)*XY(K,1)
+            YA(I)=YA(I)+SHAPE(J)*XY(K,2)
+            ZA(I)=ZA(I)+SHAPE(J)*XY(K,3)
+ 15      CONTINUE
+ 10   CONTINUE
+ 110  CONTINUE
+      RETURN
+      END
+************************************************************************
+*********       FEM-BEM  HYBRID METHOD     *****************************
+*********          FOR AC PROBLEM          *****************************
+************************************************************************
+************************************************************************
+*     EMAX =MAX NUMBER OF ELEMENTS
+*     NMAX =MAX NUMBER OF NODES
+*     KMAX =MAX NUMBER OF ELEMENTS
+*     BMAX =MAX NUMBER OF NODES
+*     NK   =WIDTH OF BAND
+*     V    =4*NMAX (= VECTOL POTENTIAL 3*NMAX + SCALAR POTENTIAL EMAX)
+*     FNMAX=MAX NUMBER OF FIELD NODES OUTSIDE THE CONDUCTOR
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX,AMAX,IMAX,FNMAX
+      INCLUDE 'RMINC'
+      PARAMETER (AMAX=5*NMAX*NMAX+2*NMAX)
+      PARAMETER (FNMAX=500)
+      INTEGER NF
+      DOUBLE PRECISION SIGMA,MU,S1,S2,LFTOFF
+      COMMON /PARA/ SIGMA, MU
+      INTEGER  INDX(2000)
+      DOUBLE PRECISION XA(EMAX),YA(EMAX),ZA(EMAX),XYF(FNMAX,3),
+     +     N1(EMAX,8,8),N2(EMAX,8,8),N1D(EMAX,8,8),
+     +     N3A(EMAX,8,8),N3B(EMAX,8,8),N3C(EMAX,8,8),
+     +     DERIV(3,8),DERIVC(3,8),SHAPE(8),XY(NMAX,3),
+     +     JACOB(3,3),JACOBI(3,3),GAUSS(25),GCOEF(25)
+      INTEGER  NOD(EMAX,8),NK(NMAX*4),JDG(NMAX*4),
+     +     NELEM,NP,NNP,I
+      COMPLEX*16  A(AMAX),F(NMAX*4),FB(NMAX*4),
+     +     JX(EMAX),JY(EMAX),JZ(EMAX),BE(FNMAX,3)
+
+****  ********************************
+*             FOR BEM                *
+****  ********************************
+      DOUBLE PRECISION PI,QQ(BMAX,BMAX),
+     +     HH(BMAX,BMAX),GG(BMAX,BMAX),M(BMAX,BMAX),
+     +     MX(BMAX,BMAX),BSHAPE(4),BDERIV(2,4),
+     +     MM(KMAX,4,4),FR,XC,YC,ZC
+      INTEGER BNOD(KMAX,4),IB,IBX,BNP,BELEM
+
+****  ********************************
+*             COIL PARAMETER         *
+****  ********************************
+      DOUBLE PRECISION J0,A0,ZL,RL
+      INTEGER NZ0,NR0,TURN
+ 
+      COMMON /CPARAM/J0,ZL,RL,A0,NZ0,NR0,TURN,LFTOFF
+      COMMON /BB0/ BNP,BELEM
+      COMMON /BB3/ BSHAPE,BDERIV
+      COMMON /BB5/ BNOD
+ 
+      COMMON /BB9/MM
+ 
+      COMMON /B0/ NP,NELEM
+      COMMON /B1/ GAUSS,GCOEF
+      COMMON /B2/ JACOB,JACOBI
+      COMMON /B3/ DERIV,DERIVC,SHAPE
+ 
+      COMMON /B5/ NOD
+      COMMON /B6/ XY
+      COMMON /B7/ N1,N2,N1D,N3A,N3B,N3C
+      COMMON /B10/ JX,JY,JZ,XA,YA,ZA
+      COMMON /DAT/ PI
+      COMMON /LARGE/HH,M,QQ,MX
+ 
+C     ***********************************
+C     *******    MAIN ROUTINE   *********
+C     ***********************************
+      OPEN(UNIT=1,FILE='sample.dat')
+      OPEN(UNIT=2,FILE='sample.edy')
+      OPEN(UNIT=4,FILE='sample.prm')
+      OPEN(UNIT=8,FILE='sample.ptl')
+      OPEN(UNIT=9,FILE='sample.mag')
+ 
+      WRITE(6,*) '**** READING DATA'
+      CALL INPUT(FR,S1,FNMAX,XYF,NF)
+
+C     ****  S1=CONDUCTIVITY *******
+C     ****  S2= MU  *******
+      PI=3.1415926535898D0
+      FR=FR*2.0D0*PI
+      S2=PI*4.0D-7
+      SIGMA=S1*S2
+      MU=1.D0
+      IB=BNP
+ 
+C**   ***********************************
+C**   *******   BEM   *******************
+C**   ***********************************
+      WRITE(6,*) '**** MAKING BEM MATRICES'
+C     ***** CALCULATION OF  BAND WIDTH 
+      CALL BANDWD(NK,JDG)
+      IBX=IB
+      CALL CLEAR(HH,GG,F,FB,IBX,IB)
+C     ***** CALCULATION OF [M]
+      CALL CALCMA(MU,M,IBX,IB)
+C     ***** CALCULATION OF [H] and [G]
+      CALL BGAUSS(HH,GG,IBX,IB)
+      CALL MATALL(HH,GG,M,QQ,INDX,IB)
+ 
+C**   ***********************************
+C**   *******   FEM   *******************
+C**   ***********************************
+      WRITE(6,*) '**** MAKING FEM MATRICES'
+      IMAX=5
+      CALL CHANGE(GAUSS,GCOEF,IMAX)
+      DO 10 I=1,NELEM
+         CALL FEMINT(I,IMAX)
+ 10   CONTINUE
+      CALL CFMTRX(JDG,A,HH,IB,FR)
+      NNP=4*NP
+ 
+C**   ***********************************
+C**   CALCULATION OF APPLIED FIELD   ****
+C**   ***********************************
+      WRITE(6,*) '**** COMPUTING APPLIED FIELD'
+C**   COORDINATES OF COIL EDGE
+      XC=0.0D-3
+      YC=0.0D-3
+      ZC=LFTOFF
+      CALL CALAEX(FB,S2,XY,NMAX,BMAX,XC,YC,ZC,2)
+      CALL BRHS(GG,F,FB,IB,NP)
+
+C**   ***********************************
+C**   SOLUTION OF LINEAR EQUATIONS   ****
+C**   ***********************************
+      WRITE(6,*) '**** SOLVING'
+      CALL SOLVER(A,.TRUE.,.TRUE.,F,JDG,NNP)
+C
+      CALL JCALC(F,S1,FR)
+      IF (.TRUE.) THEN
+         WRITE(6,*) '**** COMPUTING IMPEDANCE'
+         IMAX=7
+         CALL ACLFEM(F,S1,FR,XC,YC,ZC,IMAX)
+      ENDIF
+      IF (.FALSE.) THEN
+         WRITE(6,*) '**** COMPUTING MAGNETIC FIELD'
+         IMAX=15
+         CALL BCALCO(F,XYF,BE,FNMAX,S1,NF,FR,IMAX)
+      ENDIF
+ 
+      CALL OUTPUT(F)
+      WRITE(6,*) '******** END'
+      STOP
+      END
+      SUBROUTINE MATALL(HH,GG,M,QQ,INDX,IB)
+      INTEGER IB,INDX(*)
+      DOUBLE PRECISION HH(IB,IB),GG(IB,IB),M(IB,IB),QQ(IB,IB)
+      CALL MATINV(GG,IB,IB,INDX)
+      CALL MATPRD(QQ,M,GG,IB)
+      CALL MATSUB(GG,QQ,IB)
+      CALL MATPRD(QQ,GG,HH,IB)
+      CALL MATMEN(HH,QQ,IB)
+      RETURN
+      END
+      SUBROUTINE MATINV(A, M, N, INDEX)
+      IMPLICIT NONE
+      INTEGER INDEX(*),I,J,K,PIVR,INDEXK,M,N
+      DOUBLE PRECISION A(M,N),PIV,W,DET
+      DET=1.0D0
+      DO 10 K=1, M
+         PIV=0.0D0
+         PIVR=0
+         DO 20 I=K, M
+            W=ABS(A(I,K))
+            IF (PIV.LT.W) THEN
+               PIV=W
+               PIVR=I
+            ENDIF
+ 20      CONTINUE
+         INDEX(K)=PIVR
+         IF (PIVR.EQ.0) RETURN
+         IF (PIVR.NE.K) THEN
+            DO 30 J=1, N
+               W=A(PIVR,J)
+               A(PIVR,J)=A(K,J)
+               A(K,J)=W
+ 30         CONTINUE
+            DET=-DET
+         ENDIF
+         PIV=A(K,K)
+         DET=DET*PIV
+         A(K,K)=1.0D0
+         DO 40 J=1, N
+            A(K,J)=A(K,J)/PIV
+ 40      CONTINUE
+         DO 50 I=1, M
+            IF (I.NE.K) THEN
+               W=A(I,K)
+               A(I,K)=0.0D0
+               DO 60 J=1, N
+                  A(I,J)=A(I,J)-A(K,J)*W
+ 60            CONTINUE
+            ENDIF
+ 50      CONTINUE
+ 10   CONTINUE
+      DO 70 K=M-1,1,-1
+         INDEXK=INDEX(K)
+         IF (INDEXK.NE.K) THEN
+            DO 80 I=1, M
+               W=A(I,INDEXK)
+               A(I,INDEXK)=A(I,K)
+               A(I,K)=W
+ 80         CONTINUE
+         ENDIF
+ 70   CONTINUE
+      RETURN
+      END
+      SUBROUTINE MATMEN(A,B,N)
+      INTEGER N,I,J
+      DOUBLE PRECISION B(N,N),A(N,N)
+      DO 10 J=1,N
+      DO 10 I=1,N
+         A(I,J)=0.5D0*(B(I,J)+B(J,I))
+ 10   CONTINUE
+      RETURN
+      END
+      SUBROUTINE MATPRD(A,B,C,N)
+      INTEGER J,K,N
+      DOUBLE PRECISION A(N,N),B(N,N),C(N,N),D
+      DO 10 I=1,N
+      DO 10 J=1,N
+         D=0.0D0
+         DO 20 K=1,N
+            D=D+B(I,K)*C(K,J)
+ 20      CONTINUE
+         A(I,J)=D
+ 10   CONTINUE
+      RETURN
+      END
+      SUBROUTINE MATSUB(A,B,N)
+      INTEGER N,I,J
+      DOUBLE PRECISION A(N,N),B(N,N)
+      DO 10 J=1,N
+      DO 10 I=1,N
+         A(I,J)=B(I,J)
+ 10   CONTINUE
+      RETURN
+      END
+      SUBROUTINE OUTPUT(V)
+      IMPLICIT NONE
+      INTEGER BNP,BELEM,NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      COMPLEX*16 V(*)
+      DOUBLE PRECISION XY(NMAX,3),BSHAPE(4),BDERIV(2,4),
+     +     XA(EMAX),YA(EMAX),ZA(EMAX)
+      INTEGER NOD(EMAX,8),BNOD(KMAX,4),I,NP,NELEM
+      COMPLEX*16 JX(EMAX),JY(EMAX),JZ(EMAX)
+      COMMON /BB0 / BNP,BELEM
+      COMMON /BB3 / BSHAPE,BDERIV
+      COMMON /BB5 / BNOD
+      COMMON /B0/  NP,NELEM
+      COMMON /B5/  NOD
+      COMMON /B6/  XY
+      COMMON /B10/ JX,JY,JZ,XA,YA,ZA
+ 
+C     ******* POTENTIAL
+      WRITE(8,*) ' *** REAL PART  ***'
+      DO 30 I=1, NP
+        WRITE(8,130) I,REAL(V(I)),     REAL(V(I+NP)),
+     &                 REAL(V(I+2*NP)),REAL(V(I+3*NP))
+ 30   CONTINUE
+      WRITE(8,*) ' *** IMAGINARYL PART  ***'
+      DO 35 I=1, NP
+        WRITE(8,130) I, DIMAG(V(I)),     DIMAG(V(I+NP)),
+     &                  DIMAG(V(I+2*NP)),DIMAG(V(I+3*NP))
+ 35   CONTINUE
+ 130  FORMAT(I4,4E13.5)
+ 
+C     ***** CURRENT DENSITY
+      WRITE(2,*) ' ********* REAL PART OF CURRENT ***********'
+      DO 1000 I=1,NELEM
+         WRITE(2,1011)  XA(I),YA(I),ZA(I),
+     &        REAL(JX(I)),REAL(JY(I)),REAL(JZ(I))
+ 1000 CONTINUE
+      WRITE(2,*) ' ********* IMAGINARY PART OF CURRENT ***********'
+      DO 1001 I=1,NELEM
+         WRITE(2,1011) XA(I),YA(I),ZA(I),
+     &        DIMAG(JX(I)),DIMAG(JY(I)),DIMAG(JZ(I))
+ 1001 CONTINUE
+ 1011 FORMAT(3E11.3,3E12.4)
+
+      RETURN
+      END
+      SUBROUTINE RAS(XO,YO,ZO,X,Y,Z)
+      IMPLICIT NONE
+      DOUBLE PRECISION X,Y,Z,XX,YY,ZZ,XO,YO,ZO,SS,CS
+      XX=X
+      YY=Y
+      ZZ=Z
+      SS=DSIN(0.D0)
+      CS=DCOS(0.D0)
+      YY=(Y+YO)*CS-(Z+ZO)*SS
+      ZZ=(Y+YO)*SS+(Z+ZO)*CS
+      XO=XO
+      YO=YO
+      ZO=ZO
+      X=XX
+      Y=YY
+      Z=ZZ
+      RETURN
+      END
+      SUBROUTINE SHAPEF(XI,ETA,ZETA)
+      IMPLICIT NONE
+      DOUBLE PRECISION XI,ETA,ZETA,
+     +     A,XIP,ETAP,ZETAP,XIM,ETAM,ZETAM,
+     +     DERIV(3,8),DERIVC(3,8),SHAPE(8)
+      COMMON /B3/DERIV,DERIVC,SHAPE
+C     ****************************)
+C     *        SHAPE FUNCTIONS   *)
+C     ****************************)
+      A    =0.125D0
+      XIP  =1.0D0+XI
+      ETAP =1.0D0+ETA
+      ZETAP=1.0D0+ZETA
+      XIM  =1.0D0-XI
+      ETAM =1.0D0-ETA
+      ZETAM=1.0D0-ZETA
+      SHAPE(1)=A*XIM*ETAM*ZETAP
+      SHAPE(2)=A*XIP*ETAM*ZETAP
+      SHAPE(3)=A*XIP*ETAP*ZETAP
+      SHAPE(4)=A*XIM*ETAP*ZETAP
+      SHAPE(5)=A*XIM*ETAM*ZETAM
+      SHAPE(6)=A*XIP*ETAM*ZETAM
+      SHAPE(7)=A*XIP*ETAP*ZETAM
+      SHAPE(8)=A*XIM*ETAP*ZETAM
+C     ***************************************)
+C     *        SHAPE FUNCTION DERIVATIVES   *)
+C     ***************************************)
+      DERIV(1,1)= -A*ETAM*ZETAP
+      DERIV(1,2)=  A*ETAM*ZETAP
+      DERIV(1,3)=  A*ETAP*ZETAP
+      DERIV(1,4)= -A*ETAP*ZETAP
+      DERIV(1,5)= -A*ETAM*ZETAM
+      DERIV(1,6)=  A*ETAM*ZETAM
+      DERIV(1,7)=  A*ETAP*ZETAM
+      DERIV(1,8)= -A*ETAP*ZETAM
+      DERIV(2,1)= -A*XIM*ZETAP
+      DERIV(2,2)= -A*XIP*ZETAP
+      DERIV(2,3)=  A*XIP*ZETAP
+      DERIV(2,4)=  A*XIM*ZETAP
+      DERIV(2,5)= -A*XIM*ZETAM
+      DERIV(2,6)= -A*XIP*ZETAM
+      DERIV(2,7)=  A*XIP*ZETAM
+      DERIV(2,8)=  A*XIM*ZETAM
+      DERIV(3,1)=  A*XIM*ETAM
+      DERIV(3,2)=  A*XIP*ETAM
+      DERIV(3,3)=  A*XIP*ETAP
+      DERIV(3,4)=  A*XIM*ETAP
+      DERIV(3,5)= -A*XIM*ETAM
+      DERIV(3,6)= -A*XIP*ETAM
+      DERIV(3,7)= -A*XIP*ETAP
+      DERIV(3,8)= -A*XIM*ETAP
+      RETURN
+      END
+C     ***********************************************************
+      SUBROUTINE SOLVER(A,FLAG1,FLAG2,B,JDG,NP)
+C     ***********************************************************
+      IMPLICIT NONE
+      COMPLEX*16  A(*),B(*)
+      INTEGER JDG(*)
+      LOGICAL FLAG1,FLAG2,EXITF
+      INTEGER I,J,K,NP,JR,JD,JI,JA,JE,JH,IP,ID,II
+      COMPLEX*16 D,DOT,TINY
+      TINY=CMPLX(1.D-30,1.D-30)
+      JR=0
+      DO 10 J=1,NP
+         JD=JDG(J)
+         JI=JD-JR
+         JA=J-JI+2
+         IF (JI.GE.2) THEN
+            IF (FLAG1) THEN
+               IF (JI.GT.2) THEN
+                  JE=J-1
+                  K=JR+2
+                  ID=JDG(JA-1)
+                  DO 30 I=JA,JE
+                     IP=ID
+                     ID=JDG(I)
+                     JH=MIN0(ID-IP-1,I-JA+1)
+                     IF (JH.GT.0) THEN
+                        DOT=CMPLX(0.D0,0.D0)
+                        DO 40 II=0,JH-1
+                           DOT=DOT+A(K-JH+II)*A(ID-JH+II)
+ 40                     CONTINUE
+                        A(K)=A(K)-DOT
+                     ENDIF
+                     K=K+1
+ 30               CONTINUE
+               ENDIF
+               IP=JR+1
+               JE=JD-1
+               K=J-JD
+               DO 50 I=IP,JE
+                  ID=JDG(K+I)
+                  D=A(I)
+                  A(I)=A(I)/(A(ID)+TINY)
+                  A(JD)=A(JD)-D*A(I)
+ 50            CONTINUE
+            ENDIF
+            IF (FLAG2) THEN
+               DOT=CMPLX(0.D0,0.D0)
+               DO 60 II=0, JI-1-1
+                  DOT=DOT+A(JR+1+II)*B(JA-1+II)
+ 60            CONTINUE
+               B(J)=B(J)-DOT
+            ENDIF
+         ENDIF
+         JR=JD
+ 10   CONTINUE
+      IF (.NOT. FLAG2)  RETURN
+      DO 70 I=1,NP
+         ID=JDG(I)
+         B(I)=B(I)/(A(ID)+TINY)
+ 70   CONTINUE
+      J=NP
+      JD=JDG(J)
+      EXITF=.FALSE.
+ 100  CONTINUE
+      D=B(J)
+      J=J-1
+      IF (J.GT.0) THEN
+         JR=JDG(J)
+         IF ((JD-JR).GT.1) THEN
+            JA=J-JD+JR+2
+            K=JR-JA+1
+            DO 80 I=JA,J
+               B(I)=B(I)-A(I+K)*D
+ 80         CONTINUE
+         ENDIF
+         JD=JR
+      ELSE
+         EXITF=.TRUE.
+      ENDIF
+      IF (.NOT. EXITF) GOTO 100
+      RETURN
+      END
+      SUBROUTINE SOURCE(XS,YS,ZS,ELEM)
+      IMPLICIT NONE
+      INTEGER NMAX,EMAX,BMAX,KMAX
+      INCLUDE 'RMINC'
+      INTEGER I,K,ELEM,BNOD(KMAX,4)
+      DOUBLE PRECISION XS,YS,ZS,XY(NMAX,3),BSHAPE(4),BDERIV(2,4)
+      COMMON /BB3/ BSHAPE, BDERIV
+      COMMON /BB5/ BNOD
+      COMMON /B6/ XY
+      XS=0.0D0
+      YS=0.0D0
+      ZS=0.0D0
+      DO 10 I=1,4
+         K=BNOD(ELEM,I)
+         XS=XS+BSHAPE(I)*XY(K,1)
+         YS=YS+BSHAPE(I)*XY(K,2)
+         ZS=ZS+BSHAPE(I)*XY(K,3)
+ 10   CONTINUE
+      RETURN
+      END
+ 

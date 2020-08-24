@@ -1,0 +1,76 @@
+C  *********************************************************************
+C  *****  CM1                                               V4.10  *****
+C  *********************************************************************
+C                                               ( Apr 26 16:45:22 1994 )
+C  ==(......)***************************************************(....)==
+C
+      IMPLICIT INTEGER(I-O)
+     &        ,DOUBLE PRECISION(A,B,D-H,P-Z)
+     &        ,DOUBLE COMPLEX(C)
+      PARAMETER (
+     &            OEM =10000
+     &           ,ONV =10000
+     &           ,OND =30000
+     &           ,OQM =20000
+     &           ,OQL =2000000
+     &          )
+C  =====================================================================
+      COMMON /COMPHY/ PHC
+     &               ,PHE
+     &               ,PHM
+     &               ,PAI
+C  =====================================================================
+      COMMON /COMNVX/ NVX
+      COMMON /COMNEM/ NEM
+      COMMON /COMMDV/ MDV
+      COMMON /COMXVX/ XVX(ONV,3)
+      COMMON /COMKVX/ KVX(OEM,4)
+      COMMON /COMNBC/ NBC(OEM,4)
+      COMMON /COMNMD/ NMD(OEM)
+      COMMON /COMRPT/ RPT(12,4)
+      COMMON /COMNDR/ NDR(12,2)
+      COMMON /COMQHS/ QHS(12,3)
+      COMMON /COMDMX/ DMX(12,12)
+      COMMON /COMBMX/ BMX(12,12)
+      COMMON /COMSMX/ SMX(12,12)
+      COMMON /COMRMX/ RMX(12,3)
+      COMMON /COMPKT/ PKT(12,12)
+      COMMON /COMPMS/ PMS(12,12)
+      COMMON /COMDAR/ DAR
+      COMMON /COMNPT/ NPT
+      COMMON /COMXPT/ XPT(OND,3)
+      COMMON /COMKPT/ KPT(OEM,12)
+      COMMON /COMNQM/ NQM ,NQA
+      COMMON /COMNOD/ NOD(OND)
+C  =====================================================================
+      COMMON /COMISM/ ISM(OQM+1)
+      COMMON /COMJSM/ JSM(OQL)
+      COMMON /COMNQL/ NQL
+      COMPLEX*16 QKT,QM1,QM2
+      COMMON /COMQKT/ QKT(OQL)
+      COMMON /COMQM1/ QM1(OQM)
+      COMMON /COMQM1/ QM2(OQM)
+C  =====================================================================
+      COMMON /COMKSC/ KSC
+      PARAMETER ( OCS = 100
+     &           ,OVX = 200 )
+      COMMON /COMICS/ ICS
+      COMMON /COMACS/ ACS(OCS)
+      COMMON /COMNCS/ NCS(OCS)
+      COMMON /COMLVX/ LVX(OCS,OVX)
+      PARAMETER ( OPS =   9 )
+      COMMON /COMIPS/ IPS
+      COMMON /COMVPS/ VPS(OPS,3)
+C  =====================================================================
+      PARAMETER ( OMD =  10 )
+      COMPLEX*16 RKT,RMS
+      COMMON /COMIMD/ IMD
+      COMMON /COMFRQ/ FRQ
+      COMMON /COMPEL/ FOG
+      COMMON /COMPEL/ PEL(OMD)
+      COMMON /COMPMG/ PMG(OMD)
+      COMMON /COMPCD/ PCD(OMD)
+      COMMON /COMRKT/ RKT(OMD)
+      COMMON /COMRMS/ RMS(OMD)
+ 
+ 

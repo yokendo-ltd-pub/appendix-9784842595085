@@ -1,0 +1,25 @@
+                    |-- README.DOC
+                    |-- DISP.C
+                    |-- G.H
+                    |-- SPHERE.DAT
+        |-- CHAP1 --|-- SPHERE.POT
+        |           |-- SPHERE.EDY
+        |           |           |-- G.C
+        |           |-- GAUSS --|-- G.F
+        |
+        |           |-- N2DFEM.F
+        |           |-- MAGNET.POT
+        |-- CHAP2 --|-- MAGNET.BCD
+|-- . --|           |-- MAGNET.DAT
+        |
+        |-- CHAP3 --|-- MAGT.F
+        |
+        |           |-- MESH.FIL
+        |           |-- FEM.F
+        |           |-- FEM.FIL
+        |           |-- MESH.F
+        |-- CHAP4 --|-- FEM.H
+                    |-- MESH.H
+                    |-- SMPF.DAT
+                    |-- SMPM.DAT
+
