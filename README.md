@@ -1,6 +1,7 @@
 
 This software is released under the MIT License, see LICENSE.txt.
-（このソフトウェアは、MITライセンスのもとで公開されております。LICENSE.txtをご確認ください。）
+
+このソフトウェアは、MITライセンスのもとで公開されております。LICENSE.txtをご確認ください。
 
 ----
 
